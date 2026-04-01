@@ -1,0 +1,14 @@
+# Open Flock network runtime configuration
+# Set values on-device. Nothing secret is embedded by default.
+
+WIFI_ENABLE=0
+WIFI_COUNTRY=US
+WIFI_SSID=
+WIFI_PSK=
+WIFI_SECONDARY_SSID=
+WIFI_SECONDARY_PSK=
+
+# Optional static addressing for wlan0
+STATIC_IP=
+STATIC_NETMASK=255.255.255.0
+ROUTER_IP=

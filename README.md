@@ -91,7 +91,7 @@ sudo ./scripts/rpi-lite-provision.sh
 
 This script:
 
-- Leaves Wi-Fi/IP configuration unchanged (configure per-device)
+- Can configure Wi-Fi/IP from your own environment variables
 
 It also installs:
 
@@ -99,7 +99,21 @@ It also installs:
 - TensorFlow Lite dev package from apt when available (`libtensorflow-lite-dev`)
 - `python3-picamera2`, `ffmpeg`, and `lighttpd` (enabled at boot)
 
-No Wi-Fi credentials or static IP are stored in this repo.
+No Wi-Fi credentials or static IP are hardcoded in this repo.
+
+Example:
+
+```sh
+sudo WIFI_ENABLE=1 \
+  WIFI_SSID='your_ssid' \
+  WIFI_PSK='your_password' \
+  WIFI_SECONDARY_SSID='your_fallback_ssid' \
+  WIFI_SECONDARY_PSK='your_fallback_password' \
+  STATIC_IP_CIDR='192.168.50.24/24' \
+  ROUTER_IP='192.168.50.1' \
+  DNS_SERVERS='1.1.1.1 8.8.8.8' \
+  ./scripts/rpi-lite-provision.sh
+```
 
 ## Build Flashable Pi OS Lite Image
 
@@ -141,8 +155,11 @@ This gives you the same practical outcome without fragile pi-gen builds on macOS
 ## First boot
 
 1. Configure network on the device (or via Imager provisioning).
-2. Boot Pi 4 with Raspberry Pi Camera attached.
-3. Find IP and test:
+2. For Buildroot runtime network automation, edit:
+   - `buildroot-external/board/picam/overlay/etc/default/openflock-network`
+   Set `WIFI_ENABLE=1` and your own `WIFI_*` / `STATIC_*` values.
+3. Boot Pi 4 with Raspberry Pi Camera attached.
+4. Find IP and test:
 
 ```sh
 curl http://<pi-ip>:8080/health

@@ -4,6 +4,7 @@ DAEMON_PIPE=/usr/bin/picam-pipeline
 DAEMON_HTTP=/usr/bin/picam-httpd
 PID_PIPE=/var/run/picam-pipeline.pid
 PID_HTTP=/var/run/picam-httpd.pid
+NET_ENV=/etc/default/openflock-network
 
 start() {
     echo "[picam] starting stack"
@@ -11,6 +12,56 @@ start() {
     mkdir -p /run/picam /var/run
 
     rfkill unblock all >/dev/null 2>&1 || true
+
+    if [ -f "$NET_ENV" ]; then
+        # shellcheck disable=SC1090
+        . "$NET_ENV"
+    fi
+
+    WIFI_ENABLE="${WIFI_ENABLE:-0}"
+    WIFI_COUNTRY="${WIFI_COUNTRY:-US}"
+    WIFI_SSID="${WIFI_SSID:-}"
+    WIFI_PSK="${WIFI_PSK:-}"
+    WIFI_SECONDARY_SSID="${WIFI_SECONDARY_SSID:-}"
+    WIFI_SECONDARY_PSK="${WIFI_SECONDARY_PSK:-$WIFI_PSK}"
+    STATIC_IP="${STATIC_IP:-}"
+    STATIC_NETMASK="${STATIC_NETMASK:-255.255.255.0}"
+    ROUTER_IP="${ROUTER_IP:-}"
+
+    if [ "$WIFI_ENABLE" = "1" ] && [ -n "$WIFI_SSID" ] && [ -n "$WIFI_PSK" ]; then
+        cat > /etc/wpa_supplicant.conf <<WPA
+ctrl_interface=/var/run/wpa_supplicant
+update_config=1
+country=$WIFI_COUNTRY
+
+network={
+    ssid="$WIFI_SSID"
+    psk="$WIFI_PSK"
+    scan_ssid=1
+    priority=20
+}
+WPA
+        if [ -n "$WIFI_SECONDARY_SSID" ] && [ -n "$WIFI_SECONDARY_PSK" ]; then
+            cat >> /etc/wpa_supplicant.conf <<WPA2
+
+network={
+    ssid="$WIFI_SECONDARY_SSID"
+    psk="$WIFI_SECONDARY_PSK"
+    scan_ssid=1
+    priority=10
+}
+WPA2
+        fi
+        chmod 600 /etc/wpa_supplicant.conf
+        wpa_supplicant -B -i wlan0 -c /etc/wpa_supplicant.conf >/dev/null 2>&1 || true
+    fi
+
+    if [ -n "$STATIC_IP" ]; then
+        ifconfig wlan0 "$STATIC_IP" netmask "$STATIC_NETMASK" up >/dev/null 2>&1 || true
+        if [ -n "$ROUTER_IP" ]; then
+            route add default gw "$ROUTER_IP" wlan0 >/dev/null 2>&1 || true
+        fi
+    fi
 
     hciconfig hci0 up >/dev/null 2>&1 || true
     btmgmt le on >/dev/null 2>&1 || true

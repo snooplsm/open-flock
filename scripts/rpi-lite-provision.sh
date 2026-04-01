@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Raspberry Pi OS Lite provisioner
-# - Leaves network configuration to OS/imager/admin
+# - Optionally configures Wi-Fi/static IP from user env vars
 # - Installs ONNX Runtime (C/C++ prebuilt)
 # - Installs TensorFlow Lite dev package (if available)
 # - Installs python3-picamera2, ffmpeg, and lighttpd
@@ -20,6 +20,25 @@ ONNX_ARCHIVE="onnxruntime-linux-aarch64-${ONNX_VERSION}.tgz"
 ONNX_URL="https://github.com/microsoft/onnxruntime/releases/download/v${ONNX_VERSION}/${ONNX_ARCHIVE}"
 ONNX_ROOT="/opt/onnxruntime"
 
+# Optional network config (no hardcoded credentials in repo)
+WIFI_ENABLE="${WIFI_ENABLE:-}"
+WIFI_COUNTRY="${WIFI_COUNTRY:-US}"
+WIFI_SSID="${WIFI_SSID:-}"
+WIFI_PSK="${WIFI_PSK:-}"
+WIFI_SECONDARY_SSID="${WIFI_SECONDARY_SSID:-}"
+WIFI_SECONDARY_PSK="${WIFI_SECONDARY_PSK:-$WIFI_PSK}"
+STATIC_IP_CIDR="${STATIC_IP_CIDR:-}"   # e.g. 192.168.50.24/24
+ROUTER_IP="${ROUTER_IP:-}"             # e.g. 192.168.50.1
+DNS_SERVERS="${DNS_SERVERS:-}"
+
+if [[ -z "${WIFI_ENABLE}" ]]; then
+  if [[ -n "${WIFI_SSID}" && -n "${WIFI_PSK}" ]]; then
+    WIFI_ENABLE=1
+  else
+    WIFI_ENABLE=0
+  fi
+fi
+
 log() {
   printf '[rpi-lite] %s\n' "$*"
 }
@@ -29,6 +48,82 @@ require_cmd() {
     echo "Missing required command: $1"
     exit 1
   fi
+}
+
+configure_wifi() {
+  if [[ "${WIFI_ENABLE}" != "1" ]]; then
+    log "Wi-Fi config skipped (WIFI_ENABLE=${WIFI_ENABLE})"
+    return
+  fi
+  if [[ -z "${WIFI_SSID}" || -z "${WIFI_PSK}" ]]; then
+    echo "WIFI_ENABLE=1 requires WIFI_SSID and WIFI_PSK"
+    exit 1
+  fi
+
+  log "Configuring /etc/wpa_supplicant/wpa_supplicant.conf from env vars"
+  install -d -m 0755 /etc/wpa_supplicant
+  cat > /etc/wpa_supplicant/wpa_supplicant.conf <<WPA
+ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
+update_config=1
+country=${WIFI_COUNTRY}
+
+network={
+    ssid="${WIFI_SSID}"
+    psk="${WIFI_PSK}"
+    scan_ssid=1
+    priority=20
+}
+WPA
+
+  if [[ -n "${WIFI_SECONDARY_SSID}" && -n "${WIFI_SECONDARY_PSK}" ]]; then
+    cat >> /etc/wpa_supplicant/wpa_supplicant.conf <<WPA2
+
+network={
+    ssid="${WIFI_SECONDARY_SSID}"
+    psk="${WIFI_SECONDARY_PSK}"
+    scan_ssid=1
+    priority=10
+}
+WPA2
+  fi
+  chmod 600 /etc/wpa_supplicant/wpa_supplicant.conf
+}
+
+configure_static_ip() {
+  if [[ -z "${STATIC_IP_CIDR}" ]]; then
+    log "Static IP config skipped (STATIC_IP_CIDR not set)"
+    return
+  fi
+  if [[ -z "${ROUTER_IP}" ]]; then
+    echo "STATIC_IP_CIDR requires ROUTER_IP"
+    exit 1
+  fi
+
+  log "Configuring static wlan0 IP in /etc/dhcpcd.conf"
+  cp -a /etc/dhcpcd.conf /etc/dhcpcd.conf.bak.$(date +%s)
+
+  awk '
+    BEGIN {skip=0}
+    /^interface wlan0$/ {skip=1; next}
+    skip==1 && /^\s*$/ {skip=0; next}
+    skip==1 {next}
+    {print}
+  ' /etc/dhcpcd.conf > /etc/dhcpcd.conf.new
+
+  cat >> /etc/dhcpcd.conf.new <<DHCPCD
+
+interface wlan0
+static ip_address=${STATIC_IP_CIDR}
+static routers=${ROUTER_IP}
+DHCPCD
+
+  if [[ -n "${DNS_SERVERS}" ]]; then
+    cat >> /etc/dhcpcd.conf.new <<DHCPCD2
+static domain_name_servers=${DNS_SERVERS}
+DHCPCD2
+  fi
+
+  mv /etc/dhcpcd.conf.new /etc/dhcpcd.conf
 }
 
 install_base_packages() {
@@ -95,13 +190,27 @@ install_tflite() {
   log "TFLite install skipped. Enable bookworm repos with that package or build from source manually."
 }
 
+restart_network() {
+  if [[ "${WIFI_ENABLE}" != "1" && -z "${STATIC_IP_CIDR}" ]]; then
+    return
+  fi
+  log "Restarting network services"
+  systemctl restart dhcpcd || true
+  systemctl restart wpa_supplicant || true
+}
+
 summary() {
   cat <<OUT
 
 Provisioning complete.
 
 Configured:
-- Networking: unchanged (configure via Raspberry Pi Imager or system settings)
+- Wi-Fi enabled: ${WIFI_ENABLE}
+- Wi-Fi SSID: ${WIFI_SSID:-<not set>}
+- Wi-Fi secondary SSID: ${WIFI_SECONDARY_SSID:-<not set>}
+- Static IP CIDR: ${STATIC_IP_CIDR:-<dhcp>}
+- Router: ${ROUTER_IP:-<dhcp>}
+- DNS: ${DNS_SERVERS:-<system default>}
 
 Installed:
 - ONNX Runtime: ${ONNX_ROOT}/current
@@ -117,8 +226,11 @@ OUT
 main() {
   install_base_packages
   install_media_packages
+  configure_wifi
+  configure_static_ip
   install_onnxruntime
   install_tflite
+  restart_network
   summary
 }
 
