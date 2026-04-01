@@ -1,0 +1,4 @@
+fast-plate-ocr[onnx]
+numpy
+Pillow
+pyserial

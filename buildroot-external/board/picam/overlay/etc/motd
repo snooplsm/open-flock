@@ -1,0 +1,3 @@
+PiCam OS (Buildroot + libcamera + C pipeline)
+HTTP stream: http://<device-ip>:8080/latest.jpg
+Health:      http://<device-ip>:8080/health

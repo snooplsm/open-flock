@@ -1,0 +1,17 @@
+# Raspberry Pi 4 camera + fast boot defaults
+arm_64bit=1
+disable_overscan=1
+avoid_warnings=1
+boot_delay=0
+
+# Camera stack
+camera_auto_detect=1
+# Optional explicit sensor overlay examples:
+# dtoverlay=imx219
+# dtoverlay=imx477
+
+# GPU memory for camera use-cases
+gpu_mem=128
+
+# Keep firmware output quiet for faster boot perception
+disable_splash=1

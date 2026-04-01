@@ -1,0 +1,4 @@
+config BR2_PACKAGE_PICAM_PIPELINE
+    bool "picam-pipeline"
+    help
+      Minimal C camera pipeline using V4L2 MJPEG capture.

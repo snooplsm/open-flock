@@ -1,0 +1,7 @@
+config BR2_PACKAGE_PICAM_ONNXRUNTIME
+    bool "picam-onnxruntime"
+    help
+      ONNX Runtime C/C++ inference runtime for aarch64 targets.
+
+      This package builds a CPU-only minimal shared library and installs
+      headers + libonnxruntime into staging/target.

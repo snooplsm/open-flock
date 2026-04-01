@@ -1,0 +1,4 @@
+config BR2_PACKAGE_PICAM_HTTPD
+    bool "picam-httpd"
+    help
+      Tiny C HTTP server that exposes /health and /latest.jpg.

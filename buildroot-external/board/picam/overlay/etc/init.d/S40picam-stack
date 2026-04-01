@@ -1,0 +1,45 @@
+#!/bin/sh
+
+DAEMON_PIPE=/usr/bin/picam-pipeline
+DAEMON_HTTP=/usr/bin/picam-httpd
+PID_PIPE=/var/run/picam-pipeline.pid
+PID_HTTP=/var/run/picam-httpd.pid
+
+start() {
+    echo "[picam] starting stack"
+
+    mkdir -p /run/picam /var/run
+
+    rfkill unblock all >/dev/null 2>&1 || true
+
+    hciconfig hci0 up >/dev/null 2>&1 || true
+    btmgmt le on >/dev/null 2>&1 || true
+
+    start-stop-daemon -S -b -m -p "$PID_PIPE" --exec "$DAEMON_PIPE" -- -d /dev/video0 -o /run/picam/latest.jpg -f 15
+    start-stop-daemon -S -b -m -p "$PID_HTTP" --exec "$DAEMON_HTTP" -- -p 8080 -f /run/picam/latest.jpg
+}
+
+stop() {
+    echo "[picam] stopping stack"
+    start-stop-daemon -K -p "$PID_HTTP" >/dev/null 2>&1 || true
+    start-stop-daemon -K -p "$PID_PIPE" >/dev/null 2>&1 || true
+}
+
+case "$1" in
+    start)
+        start
+        ;;
+    stop)
+        stop
+        ;;
+    restart)
+        stop
+        start
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart}"
+        exit 1
+        ;;
+esac
+
+exit 0

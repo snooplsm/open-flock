@@ -1,0 +1,10 @@
+python3-picamera2
+ffmpeg
+lighttpd
+curl
+ca-certificates
+libatomic1
+build-essential
+cmake
+pkg-config
+unzip

@@ -1,0 +1,5 @@
+menu "PiCam OS packages"
+    source "$BR2_EXTERNAL_PICAM_PATH/package/picam-onnxruntime/Config.in"
+    source "$BR2_EXTERNAL_PICAM_PATH/package/picam-pipeline/Config.in"
+    source "$BR2_EXTERNAL_PICAM_PATH/package/picam-httpd/Config.in"
+endmenu
